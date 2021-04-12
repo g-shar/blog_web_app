@@ -1,9 +1,9 @@
 const express = require('express')
 const app = express()
 const cors = require('cors')
-const blogRouter = require('./controllers/blog')
+const postsRouter = require('./controllers/posts')
 app.use(express.json())
 
-app.use('/api/blogs', blogRouter)
+app.use('/api/posts', postsRouter)
 
 module.exports = app
