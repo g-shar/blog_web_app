@@ -1,8 +1,24 @@
 const postsRouter = require('express').Router()
 const db = require('../db')
+const jwt = require('jsonwebtoken')
+
+const obtainToken = request => {
+	const authorization = request.get('authorization')
+	if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
+		return authorization.substring(7)
+	}
+	return null
+}
 
 postsRouter.get('/', async (request, response, next) => {
-	db.query(`SELECT * FROM post`, (err, res) => {
+	db.query(`SELECT 
+		post.title, 
+		post.description, 
+		post.body, 
+		post.date_posted, 
+		member.first_name, 
+		member.last_name 
+		FROM post JOIN member on post.member_id=member.id ORDER BY post.date_posted DESC;`, (err, res) => {
 		if (err) {
 			return next(err)
 		}
@@ -15,28 +31,30 @@ postsRouter.get('/:id', async (request, response, next) => {
 		if (err) {
 			return next(err)
 		}
-		console.log('response: ', res.rows[0])
 		response.json(res.rows[0])
 	})
 })
 
 postsRouter.post('/', async (request, response, next) => {
 	console.log('posting...')
+	const token = obtainToken(request)
+	const decodedToken = jwt.verify(token, process.env.SECRET)
+	if (!token || !decodedToken.id) {
+		return response.status(401).json({error: 'token missing or invalid'})
+	}
 	db.query(`INSERT INTO post (
 			title, 
 			description,
 			body,
 			date_posted,
-			cover_image_id,
 			member_id
-		) VALUES ($1, $2, $3, NOW(), $4, $5)`, 
+		) VALUES ($1, $2, $3, NOW(), $4) RETURNING *`, 
 		[request.body.title, request.body.description, request.body.body, 
-			request.cover_image_id, request.user_id], (err, res) => {
+			decodedToken.id], (err, res) => {
 		if (err) {
 			return next(err)
 		}
-		console.log("POST RESPONSE: ", res)
-		response.status(200)
+		response.status(201).json(res.rows[0])
 	})
 })
 
@@ -51,8 +69,13 @@ postsRouter.delete('/:id', async (request, response, next) => {
 
 postsRouter.put('/:id', async (request, response, next) => {
 	const body = request.body
-	db.query(`UPDATE post SET title = $1, description = $2, body = $3 WHERE id = $5`, 
-			[body.title, body.description, body.body, request.params.id],
+	const token = obtainToken(request)
+	const decodedToken = jwt.verify(token, process.env.SECRET)
+	if (!token || !decodedToken.id) {
+		return response.status(401).json({error: 'token missing or invalid'})
+	}
+	db.query(`UPDATE post SET title = $1, description = $2, body = $3 WHERE id = $4 AND member_id = $5 RETURNING *`, 
+			[body.title, body.description, body.body, request.params.id, decodedToken.id],
 			(err, res) => {
 					if (err) {
 						return next(err)

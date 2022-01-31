@@ -1,7 +1,8 @@
 const db = require('../db')
 
-const getAllRecords = (table) => {
-	return db.query(`SELECT * FROM ${table}`)
+const getAllRecords = async (table) => {
+	const res = await db.query(`SELECT * FROM ${table}`)
+	return res.rows
 }
 
 module.exports = {
